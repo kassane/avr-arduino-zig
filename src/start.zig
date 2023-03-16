@@ -5,7 +5,7 @@ const std = @import("std");
 const builtin = std.builtin;
 
 export const vector_table linksection(".vectors") = blk: {
-    std.debug.assert(std.mem.eql(u8, "RESET", std.meta.fields(atmega328p.VectorTable)[0].name));
+    std.debug.assert(std.mem.eql(u8, "RESET", std.meta.fieldNames(atmega328p.VectorTable)[0]));
     var asm_str: []const u8 = "jmp _start\n";
 
     const has_interrupts = @hasDecl(main, "interrupts");
@@ -16,9 +16,9 @@ export const vector_table linksection(".vectors") = blk: {
         inline for (std.meta.declarations(main.interrupts)) |decl| {
             if (!@hasField(atmega328p.VectorTable, decl.name)) {
                 var msg: []const u8 = "There is no such interrupt as '" ++ decl.name ++ "'. ISRs the 'interrupts' namespace must be one of:\n";
-                inline for (std.meta.fields(atmega328p.VectorTable)) |field| {
-                    if (!std.mem.eql(u8, "RESET", field.name)) {
-                        msg = msg ++ "    " ++ field.name ++ "\n";
+                inline for (std.meta.fieldNames(atmega328p.VectorTable)) |field| {
+                    if (!std.mem.eql(u8, "RESET", field)) {
+                        msg = msg ++ "    " ++ field ++ "\n";
                     }
                 }
 
@@ -27,13 +27,13 @@ export const vector_table linksection(".vectors") = blk: {
         }
     }
 
-    inline for (std.meta.fields(atmega328p.VectorTable)[1..]) |field| {
+    inline for (std.meta.fieldNames(atmega328p.VectorTable)) |field| {
         const new_insn = if (has_interrupts) overload: {
-            if (@hasDecl(main.interrupts, field.name)) {
-                const handler = @field(main.interrupts, field.name);
-                const calling_convention = switch (@typeInfo(@TypeOf(@field(main.interrupts, field.name)))) {
+            if (@hasDecl(main.interrupts, field)) {
+                const handler = @field(main.interrupts, field);
+                const calling_convention = switch (@typeInfo(@TypeOf(@field(main.interrupts, field)))) {
                     .Fn => |info| info.calling_convention,
-                    else => @compileError("Declarations in 'interrupts' namespace must all be functions. '" ++ field.name ++ "' is not a function"),
+                    else => @compileError("Declarations in 'interrupts' namespace must all be functions. '" ++ field ++ "' is not a function"),
                 };
 
                 const exported_fn = switch (calling_convention) {
@@ -122,7 +122,7 @@ fn clear_bss() void {
     // Probably a good idea to add clobbers here, but compiler doesn't seem to care
 }
 
-pub fn panic(msg: []const u8, error_return_trace: ?*builtin.StackTrace) noreturn {
+pub fn panic(msg: []const u8, error_return_trace: ?*builtin.StackTrace, _: ?usize) noreturn {
     // Currently assumes that the uart is initialized in main().
     uart.write("PANIC: ");
     uart.write(msg);

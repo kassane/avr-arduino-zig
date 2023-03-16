@@ -1,19 +1,24 @@
 const std = @import("std");
-const Builder = std.build.Builder;
+const Builder = std.Build.Builder;
+const CrossTarget = std.zig.CrossTarget;
+const Target = std.Target;
 
 pub fn build(b: *Builder) !void {
-    const uno = std.zig.CrossTarget{
+    const uno = CrossTarget{
         .cpu_arch = .avr,
-        .cpu_model = .{ .explicit = &std.Target.avr.cpu.atmega328p },
+        .cpu_model = .{ .explicit = &Target.avr.cpu.atmega328p },
         .os_tag = .freestanding,
         .abi = .none,
     };
 
-    const exe = b.addExecutable("avr-arduino-zig", "src/start.zig");
-    exe.setTarget(uno);
-    exe.setBuildMode(.ReleaseSafe);
+    const exe = b.addExecutable(.{
+        .name = "avr-arduino-zig",
+        .target = uno,
+        .optimize = .ReleaseSafe,
+        .root_source_file = .{ .path = "src/start.zig" },
+    });
     exe.bundle_compiler_rt = false;
-    exe.setLinkerScriptPath(std.build.FileSource{ .path = "src/linker.ld" });
+    exe.setLinkerScriptPath(.{ .path = "src/linker.ld" });
     exe.install();
 
     const tty = b.option(
@@ -24,16 +29,10 @@ pub fn build(b: *Builder) !void {
 
     const bin_path = b.getInstallPath(exe.install_step.?.dest_dir, exe.out_filename);
 
-    const flash_command = blk: {
-        var tmp = std.ArrayList(u8).init(b.allocator);
-        try tmp.appendSlice("-Uflash:w:");
-        try tmp.appendSlice(bin_path);
-        try tmp.appendSlice(":e");
-        break :blk tmp.toOwnedSlice();
-    };
+    const flash_command = b.fmt("-Uflash:w: {s} :e", .{bin_path});
 
     const upload = b.step("upload", "Upload the code to an Arduino device using avrdude");
-    const avrdude = b.addSystemCommand(&.{
+    const avrdude = b.addSystemCommand(&[_][]const u8{
         "avrdude",
         "-carduino",
         "-patmega328p",
